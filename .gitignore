@@ -1,0 +1,29 @@
+.env
+.env.local
+.env.*.local
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Generated documents - keep the folder, not its contents
+reports/*
+!reports/.gitkeep
+
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.log
+
+# Streamlit secrets (if you ever deploy to Streamlit Cloud)
+.streamlit/secrets.toml
