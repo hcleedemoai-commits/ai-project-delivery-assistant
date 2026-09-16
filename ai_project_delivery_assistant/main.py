@@ -27,6 +27,10 @@ from ai_project_delivery_assistant.prompts.wbs_prompt import (
 from ai_project_delivery_assistant.generators.wbs_generator import WBSGenerator
 from ai_project_delivery_assistant.prompts.timeline_prompt import build_timeline_prompt
 from ai_project_delivery_assistant.generators.timeline_generator import TimelineGenerator
+from ai_project_delivery_assistant.prompts.risk_prompt import build_risk_prompt
+from ai_project_delivery_assistant.generators.risk_generator import RiskGenerator
+from ai_project_delivery_assistant.prompts.decision_prompt import build_decision_prompt
+from ai_project_delivery_assistant.generators.decision_generator import DecisionGenerator
 
 
 st.set_page_config(page_title="AI Project Delivery Assistant", page_icon="🤖")
@@ -47,13 +51,15 @@ def main():
         "change AI_PROVIDER in your .env to switch between claude / openrouter / mock"
     )
 
-    tab_quick, tab_structured, tab_charter, tab_wbs, tab_timeline = st.tabs(
+    tab_quick, tab_structured, tab_charter, tab_wbs, tab_timeline, tab_risk, tab_decision = st.tabs(
         [
             "Quick Prompt",
             "Structured BA Review",
             "Project Charter",
             "Work Breakdown Structure",
             "Milestones & Timeline",
+            "Risk Register",
+            "Decision Matrix",
         ]
     )
 
@@ -292,6 +298,110 @@ missing_information (list of strings), risks (list of strings), questions (list 
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             key="timeline_download",
                         )
+
+
+    # ---- Phase 3: Risk Register - identify risks, apply a fixed escalation rule ----
+    with tab_risk:
+        st.write(
+            "Describe a project idea. The AI acts as a Senior Risk Manager "
+            "and identifies delivery risks with likelihood, impact, "
+            "mitigation, and an accountable owner role. Which risks get "
+            "escalated is decided by a fixed rule in this app, not by the "
+            "AI, so the answer is consistent every time."
+        )
+
+        risk_idea_text = st.text_area(
+            "Project idea",
+            value=(
+                "We want to build a customer portal so clients can log in, "
+                "view order history, and download invoices themselves "
+                "instead of emailing support."
+            ),
+            height=120,
+            key="risk_idea",
+        )
+
+        if st.button("Generate Risk Register", key="risk_send"):
+            prompt = build_risk_prompt(risk_idea_text)
+
+            with st.spinner("Identifying risks..."):
+                ai = AIFactory.create()
+                raw_result = ai.generate(prompt)
+                risk_data = AIResponseParser().parse(raw_result)
+
+            if "error" in risk_data:
+                st.warning(risk_data["error"])
+                st.text(risk_data.get("raw_response", ""))
+            else:
+                st.subheader("Risk Register preview")
+                st.json(risk_data)
+
+                os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+                risk_output_path = os.path.join(Config.REPORTS_DIR, "Risk_Register.docx")
+
+                RiskGenerator().generate(risk_data, risk_output_path)
+
+                with open(risk_output_path, "rb") as f:
+                    st.download_button(
+                        "Download Risk_Register.docx",
+                        data=f.read(),
+                        file_name="Risk_Register.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="risk_download",
+                    )
+
+
+    # ---- Phase 3: Decision Matrix - AI scores options, Python computes the weighted result ----
+    with tab_decision:
+        st.write(
+            "Describe a decision you're weighing. The AI acts as a Senior "
+            "Business Analyst and proposes realistic options, weighted "
+            "criteria, and a score for each option against each criterion. "
+            "The weighted total and recommendation are then computed by "
+            "this app, not by the AI, so the same inputs always produce "
+            "the same recommendation."
+        )
+
+        decision_idea_text = st.text_area(
+            "Decision to analyze",
+            value=(
+                "We need to decide how to build the customer portal's "
+                "authentication: build our own login system, use a "
+                "third-party identity provider, or extend our existing "
+                "internal SSO."
+            ),
+            height=120,
+            key="decision_idea",
+        )
+
+        if st.button("Generate Decision Matrix", key="decision_send"):
+            prompt = build_decision_prompt(decision_idea_text)
+
+            with st.spinner("Scoring options..."):
+                ai = AIFactory.create()
+                raw_result = ai.generate(prompt)
+                decision_data = AIResponseParser().parse(raw_result)
+
+            if "error" in decision_data:
+                st.warning(decision_data["error"])
+                st.text(decision_data.get("raw_response", ""))
+            else:
+                st.subheader("Decision Matrix preview")
+                st.json(decision_data)
+
+                os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+                decision_output_path = os.path.join(Config.REPORTS_DIR, "Decision_Matrix.docx")
+
+                DecisionGenerator().generate(decision_data, decision_output_path)
+
+                with open(decision_output_path, "rb") as f:
+                    st.download_button(
+                        "Download Decision_Matrix.docx",
+                        data=f.read(),
+                        file_name="Decision_Matrix.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="decision_download",
+                    )
 
 
 if __name__ == "__main__":

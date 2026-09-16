@@ -26,11 +26,11 @@ pitch line for each one.
 - [x] Work Breakdown Structure generator via iterative prompting (phases, then tasks per phase)
 - [x] Milestone & timeline outline generator (builds on the WBS via `st.session_state`, flags parallel vs. sequential phases)
 
-## Phase 3 - Risk & Decision Analysis: Reasoning Under Uncertainty
+## Phase 3 - Risk & Decision Analysis: Reasoning Under Uncertainty ✅
 
-- [ ] Risk Register generator (likelihood, impact, mitigation, owner)
-- [ ] Escalation-path logic for high-severity risks
-- [ ] Decision matrix / trade-off generator
+- [x] Risk Register generator (likelihood, impact, mitigation, owner)
+- [x] Escalation-path logic for high-severity risks (a fixed rule in code, not left to the AI)
+- [x] Decision matrix / trade-off generator (AI scores options, Python computes the weighted result)
 
 ## Phase 4 - Reporting & Communication: Same Facts, Different Audience
 
