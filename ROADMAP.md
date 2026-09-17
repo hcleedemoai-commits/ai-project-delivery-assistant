@@ -32,12 +32,12 @@ pitch line for each one.
 - [x] Escalation-path logic for high-severity risks (a fixed rule in code, not left to the AI)
 - [x] Decision matrix / trade-off generator (AI scores options, Python computes the weighted result)
 
-## Phase 4 - Reporting & Communication: Same Facts, Different Audience
+## Phase 4 - Reporting & Communication: Same Facts, Different Audience ✅
 
-- [ ] Meeting-minutes chain (parser -> AI analysis -> Word generator), wired into the app
-- [ ] Executive status-report generator
-- [ ] RACI matrix generator
-- [ ] Audience/tone selector (executive vs. team)
+- [x] Meeting-minutes chain (parser -> AI analysis -> Word generator), wired into the app
+- [x] Executive status-report generator
+- [x] RACI matrix generator (AI assigns roles, Python checks the one-Accountable rule)
+- [x] Audience/tone selector (executive vs. team) - same prompt template, different instructions block
 
 ## Phase 5 - Integration & Responsible Use: Where the Tool Meets Real Work
 

@@ -31,6 +31,16 @@ from ai_project_delivery_assistant.prompts.risk_prompt import build_risk_prompt
 from ai_project_delivery_assistant.generators.risk_generator import RiskGenerator
 from ai_project_delivery_assistant.prompts.decision_prompt import build_decision_prompt
 from ai_project_delivery_assistant.generators.decision_generator import DecisionGenerator
+from ai_project_delivery_assistant.meeting_parser import parse_meeting_notes
+from ai_project_delivery_assistant.prompts.meeting_prompt import build_meeting_prompt
+from ai_project_delivery_assistant.generators.meeting_generator import MeetingMinutesGenerator
+from ai_project_delivery_assistant.prompts.status_report_prompt import (
+    AUDIENCES,
+    build_status_report_prompt,
+)
+from ai_project_delivery_assistant.generators.status_report_generator import StatusReportGenerator
+from ai_project_delivery_assistant.prompts.raci_prompt import build_raci_prompt
+from ai_project_delivery_assistant.generators.raci_generator import RaciGenerator
 
 
 st.set_page_config(page_title="AI Project Delivery Assistant", page_icon="🤖")
@@ -51,7 +61,18 @@ def main():
         "change AI_PROVIDER in your .env to switch between claude / openrouter / mock"
     )
 
-    tab_quick, tab_structured, tab_charter, tab_wbs, tab_timeline, tab_risk, tab_decision = st.tabs(
+    (
+        tab_quick,
+        tab_structured,
+        tab_charter,
+        tab_wbs,
+        tab_timeline,
+        tab_risk,
+        tab_decision,
+        tab_meeting,
+        tab_status,
+        tab_raci,
+    ) = st.tabs(
         [
             "Quick Prompt",
             "Structured BA Review",
@@ -60,6 +81,9 @@ def main():
             "Milestones & Timeline",
             "Risk Register",
             "Decision Matrix",
+            "Meeting Minutes",
+            "Status Report",
+            "RACI Matrix",
         ]
     )
 
@@ -401,6 +425,182 @@ missing_information (list of strings), risks (list of strings), questions (list 
                         file_name="Decision_Matrix.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         key="decision_download",
+                    )
+
+
+    # ---- Phase 4: Meeting Minutes - parser (code) -> AI analysis -> generator ----
+    with tab_meeting:
+        st.write(
+            "Paste raw meeting notes below. Optional `Date:` and "
+            "`Attendees:` header lines are parsed directly (no AI call) - "
+            "only the discussion text is sent to the AI, which acts as a "
+            "Business Analyst extracting a summary, decisions, and action items."
+        )
+
+        meeting_notes_text = st.text_area(
+            "Raw meeting notes",
+            value=(
+                "Date: 2026-09-17\n"
+                "Attendees: Alice, Bob, Carol\n"
+                "\n"
+                "Discussed the customer portal login flow. Bob raised a "
+                "concern about SSO integration timelines. Team agreed to "
+                "use the existing internal SSO instead of building a new "
+                "login system. Alice will confirm SSO API access with IT "
+                "by next Friday. Carol will draft the updated login "
+                "wireframes this week."
+            ),
+            height=180,
+            key="meeting_notes",
+        )
+
+        if st.button("Generate Meeting Minutes", key="meeting_send"):
+            parsed = parse_meeting_notes(meeting_notes_text)
+
+            if not parsed["body"]:
+                st.warning(
+                    "No discussion text found after removing the Date/Attendees "
+                    "header lines - there's nothing left to send to the AI."
+                )
+            else:
+                prompt = build_meeting_prompt(parsed["body"])
+
+                with st.spinner("Extracting decisions and action items..."):
+                    ai = AIFactory.create()
+                    raw_result = ai.generate(prompt)
+                    ai_data = AIResponseParser().parse(raw_result)
+
+                if "error" in ai_data:
+                    st.warning(ai_data["error"])
+                    st.text(ai_data.get("raw_response", ""))
+                else:
+                    st.subheader("Parsed header (no AI call)")
+                    st.json({"date": parsed["date"], "attendees": parsed["attendees"]})
+
+                    st.subheader("AI-extracted content")
+                    st.json(ai_data)
+
+                    os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+                    meeting_output_path = os.path.join(Config.REPORTS_DIR, "Meeting_Minutes.docx")
+
+                    MeetingMinutesGenerator().generate(parsed, ai_data, meeting_output_path)
+
+                    with open(meeting_output_path, "rb") as f:
+                        st.download_button(
+                            "Download Meeting_Minutes.docx",
+                            data=f.read(),
+                            file_name="Meeting_Minutes.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key="meeting_download",
+                        )
+
+
+    # ---- Phase 4: Status Report - same facts, audience picks the prompt used ----
+    with tab_status:
+        st.write(
+            "Describe the project's current status in your own words. Pick "
+            "an audience, and the AI writes the same underlying facts in a "
+            "different tone and level of detail - the document structure "
+            "stays the same either way."
+        )
+
+        audience = st.selectbox("Audience", AUDIENCES, key="status_audience")
+
+        status_text = st.text_area(
+            "Project status notes",
+            value=(
+                "Customer portal build is on track. Login flow using "
+                "internal SSO is done and in QA. Invoice download feature "
+                "is behind schedule by about a week because the legacy "
+                "invoicing system's API turned out to be undocumented - "
+                "engineering is reverse-engineering it now. Order history "
+                "view is not started yet, planned for next sprint."
+            ),
+            height=140,
+            key="status_notes",
+        )
+
+        if st.button("Generate Status Report", key="status_send"):
+            prompt = build_status_report_prompt(status_text, audience)
+
+            with st.spinner(f"Drafting the {audience.lower()} version..."):
+                ai = AIFactory.create()
+                raw_result = ai.generate(prompt)
+                status_data = AIResponseParser().parse(raw_result)
+
+            if "error" in status_data:
+                st.warning(status_data["error"])
+                st.text(status_data.get("raw_response", ""))
+            else:
+                st.subheader(f"{audience} report preview")
+                st.json(status_data)
+
+                os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+                status_output_path = os.path.join(
+                    Config.REPORTS_DIR, f"Status_Report_{audience}.docx"
+                )
+
+                StatusReportGenerator().generate(status_data, status_output_path)
+
+                with open(status_output_path, "rb") as f:
+                    st.download_button(
+                        f"Download Status_Report_{audience}.docx",
+                        data=f.read(),
+                        file_name=f"Status_Report_{audience}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="status_download",
+                    )
+
+
+    # ---- Phase 4: RACI Matrix - AI assigns roles, Python checks the result follows RACI's own rules ----
+    with tab_raci:
+        st.write(
+            "Describe a project idea. The AI acts as a Senior Project "
+            "Manager and proposes activities, roles, and a RACI "
+            "assignment for each. This app then checks the AI's answer "
+            "against RACI's own structural rule - exactly one "
+            "Accountable owner per activity - and flags anything that "
+            "doesn't hold."
+        )
+
+        raci_idea_text = st.text_area(
+            "Project idea",
+            value=(
+                "We want to build a customer portal so clients can log in, "
+                "view order history, and download invoices themselves "
+                "instead of emailing support."
+            ),
+            height=120,
+            key="raci_idea",
+        )
+
+        if st.button("Generate RACI Matrix", key="raci_send"):
+            prompt = build_raci_prompt(raci_idea_text)
+
+            with st.spinner("Assigning roles..."):
+                ai = AIFactory.create()
+                raw_result = ai.generate(prompt)
+                raci_data = AIResponseParser().parse(raw_result)
+
+            if "error" in raci_data:
+                st.warning(raci_data["error"])
+                st.text(raci_data.get("raw_response", ""))
+            else:
+                st.subheader("RACI Matrix preview")
+                st.json(raci_data)
+
+                os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+                raci_output_path = os.path.join(Config.REPORTS_DIR, "RACI_Matrix.docx")
+
+                RaciGenerator().generate(raci_data, raci_output_path)
+
+                with open(raci_output_path, "rb") as f:
+                    st.download_button(
+                        "Download RACI_Matrix.docx",
+                        data=f.read(),
+                        file_name="RACI_Matrix.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="raci_download",
                     )
 
 
