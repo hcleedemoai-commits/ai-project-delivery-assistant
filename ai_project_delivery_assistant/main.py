@@ -41,6 +41,8 @@ from ai_project_delivery_assistant.prompts.status_report_prompt import (
 from ai_project_delivery_assistant.generators.status_report_generator import StatusReportGenerator
 from ai_project_delivery_assistant.prompts.raci_prompt import build_raci_prompt
 from ai_project_delivery_assistant.generators.raci_generator import RaciGenerator
+from ai_project_delivery_assistant.integrations.notion_client import NotionClient
+from ai_project_delivery_assistant.integrations.jira_client import JiraClient
 
 
 st.set_page_config(page_title="AI Project Delivery Assistant", page_icon="🤖")
@@ -462,6 +464,8 @@ missing_information (list of strings), risks (list of strings), questions (list 
                     "No discussion text found after removing the Date/Attendees "
                     "header lines - there's nothing left to send to the AI."
                 )
+                st.session_state.pop("meeting_parsed", None)
+                st.session_state.pop("meeting_ai_data", None)
             else:
                 prompt = build_meeting_prompt(parsed["body"])
 
@@ -473,26 +477,68 @@ missing_information (list of strings), risks (list of strings), questions (list 
                 if "error" in ai_data:
                     st.warning(ai_data["error"])
                     st.text(ai_data.get("raw_response", ""))
+                    st.session_state.pop("meeting_parsed", None)
+                    st.session_state.pop("meeting_ai_data", None)
                 else:
-                    st.subheader("Parsed header (no AI call)")
-                    st.json({"date": parsed["date"], "attendees": parsed["attendees"]})
+                    # Same reason as the Status Report tab: kept in
+                    # session_state, not local variables, so the preview/
+                    # download/push-to-Jira section survives the rerun
+                    # that clicking "Push Action Items to Jira" triggers.
+                    st.session_state["meeting_parsed"] = parsed
+                    st.session_state["meeting_ai_data"] = ai_data
 
-                    st.subheader("AI-extracted content")
-                    st.json(ai_data)
+        meeting_parsed = st.session_state.get("meeting_parsed")
+        meeting_ai_data = st.session_state.get("meeting_ai_data")
 
-                    os.makedirs(Config.REPORTS_DIR, exist_ok=True)
-                    meeting_output_path = os.path.join(Config.REPORTS_DIR, "Meeting_Minutes.docx")
+        if meeting_parsed and meeting_ai_data:
+            st.subheader("Parsed header (no AI call)")
+            st.json({"date": meeting_parsed["date"], "attendees": meeting_parsed["attendees"]})
 
-                    MeetingMinutesGenerator().generate(parsed, ai_data, meeting_output_path)
+            st.subheader("AI-extracted content")
+            st.json(meeting_ai_data)
 
-                    with open(meeting_output_path, "rb") as f:
-                        st.download_button(
-                            "Download Meeting_Minutes.docx",
-                            data=f.read(),
-                            file_name="Meeting_Minutes.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key="meeting_download",
+            os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+            meeting_output_path = os.path.join(Config.REPORTS_DIR, "Meeting_Minutes.docx")
+
+            MeetingMinutesGenerator().generate(meeting_parsed, meeting_ai_data, meeting_output_path)
+
+            with open(meeting_output_path, "rb") as f:
+                st.download_button(
+                    "Download Meeting_Minutes.docx",
+                    data=f.read(),
+                    file_name="Meeting_Minutes.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="meeting_download",
+                )
+
+            # Phase 5: the exact same action_items the .docx table was
+            # just built from, each turned into its own Jira issue -
+            # only meaningful when there are action items to push at all.
+            st.divider()
+            action_items = meeting_ai_data.get("action_items", [])
+
+            if not action_items:
+                st.caption("No action items were extracted from this meeting - nothing to push to Jira.")
+            elif st.button("Push Action Items to Jira", key="meeting_jira_push"):
+                try:
+                    jira_result = JiraClient().push_meeting_action_items(
+                        meeting_parsed, meeting_ai_data
+                    )
+                except ValueError as e:
+                    st.error(f"Jira isn't configured yet: {e}")
+                else:
+                    if jira_result["created"]:
+                        st.success(
+                            f"Created {len(jira_result['created'])} Jira issue(s): "
+                            + ", ".join(jira_result["created"])
                         )
+                    if jira_result["failed"]:
+                        st.error(
+                            f"{len(jira_result['failed'])} action item(s) failed to "
+                            "create as Jira issues:"
+                        )
+                        for failure in jira_result["failed"]:
+                            st.text(f"- {failure['item']}: {failure['error']}")
 
 
     # ---- Phase 4: Status Report - same facts, audience picks the prompt used ----
@@ -531,24 +577,61 @@ missing_information (list of strings), risks (list of strings), questions (list 
             if "error" in status_data:
                 st.warning(status_data["error"])
                 st.text(status_data.get("raw_response", ""))
+                st.session_state.pop("status_data", None)
             else:
-                st.subheader(f"{audience} report preview")
-                st.json(status_data)
+                # Remembered in session_state (not just a local variable)
+                # because Streamlit reruns this whole script on every button
+                # click. Without this, clicking "Push to Notion" below would
+                # make this "Generate Status Report" button's own `if` turn
+                # False again on that rerun, and the whole preview/download/
+                # push section - status_data included - would vanish before
+                # the push ever happened.
+                st.session_state["status_data"] = status_data
+                # Named differently from the selectbox's own key
+                # ("status_audience" above) - Streamlit forbids writing to
+                # session_state under a key that a widget already owns.
+                st.session_state["status_report_audience"] = audience
 
-                os.makedirs(Config.REPORTS_DIR, exist_ok=True)
-                status_output_path = os.path.join(
-                    Config.REPORTS_DIR, f"Status_Report_{audience}.docx"
+        status_data = st.session_state.get("status_data")
+
+        if status_data:
+            report_audience = st.session_state.get("status_report_audience", audience)
+
+            st.subheader(f"{report_audience} report preview")
+            st.json(status_data)
+
+            os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+            status_output_path = os.path.join(
+                Config.REPORTS_DIR, f"Status_Report_{report_audience}.docx"
+            )
+
+            StatusReportGenerator().generate(status_data, status_output_path)
+
+            with open(status_output_path, "rb") as f:
+                st.download_button(
+                    f"Download Status_Report_{report_audience}.docx",
+                    data=f.read(),
+                    file_name=f"Status_Report_{report_audience}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="status_download",
                 )
 
-                StatusReportGenerator().generate(status_data, status_output_path)
-
-                with open(status_output_path, "rb") as f:
-                    st.download_button(
-                        f"Download Status_Report_{audience}.docx",
-                        data=f.read(),
-                        file_name=f"Status_Report_{audience}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key="status_download",
+            # Phase 5: the exact same status_data the .docx was just built
+            # from, pushed to the shared Notion page instead of (or as well
+            # as) downloading a file - one AI call, two destinations, no
+            # second source of truth.
+            st.divider()
+            if st.button("Push to Notion", key="status_notion_push"):
+                try:
+                    notion_result = NotionClient().push_status_report(status_data)
+                except ValueError as e:
+                    st.error(f"Notion isn't configured yet: {e}")
+                except RuntimeError as e:
+                    st.error(f"Notion rejected the request: {e}")
+                else:
+                    st.success(
+                        f"Pushed to Notion - {notion_result['blocks_added']} "
+                        "blocks added. Check your AI Project Reports page."
                     )
 
 

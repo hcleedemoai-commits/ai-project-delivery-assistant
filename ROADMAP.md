@@ -41,6 +41,39 @@ pitch line for each one.
 
 ## Phase 5 - Integration & Responsible Use: Where the Tool Meets Real Work
 
-- [ ] Responsible Use section in the README
-- [ ] Stretch: one external tool integration (Jira or Notion API)
-- [ ] Capstone run: plain-language idea -> charter -> WBS -> risk register -> status report, all as real documents
+- [x] Responsible Use section in the README
+      -> expanded beyond the original Phase 1 stub to cover the Phase 5
+      integrations specifically: data pushed to Notion/Jira becomes a
+      real third-party record (not just a local file), and why Meeting
+      Action Items auto-push to Jira but Risk Register entries
+      deliberately don't (see the integration note above) - also
+      refreshed the rest of the README (Status, Project Structure,
+      Quick Start) which had drifted since Phase 1
+- [x] Stretch: one external tool integration (Jira or Notion API)
+      -> ended up building both, after deciding what belongs in each:
+      - Notion: Status Report data pushed as blocks onto a live,
+        shareable page (same `data` dict the .docx generator already
+        uses - one AI call, two destinations)
+      - Jira: Meeting Minutes' Action Items, each turned into its own
+        issue - chosen over the alternatives after evaluating them:
+        Risk Register entries are still AI-drafted speculation until a
+        person reviews them (pushing them to Jira automatically would
+        pollute the backlog with tickets nobody decided to act on), and
+        WBS tasks are already tracked in the project schedule (a second
+        ticket would just duplicate it). Action items are different -
+        someone already committed to them out loud in the meeting -
+        which is exactly what an issue tracker is for.
+- [x] Capstone run: plain-language idea -> charter -> WBS -> risk register -> status report, all as real documents
+      -> ran end to end using a real-world idea (Singapore's IRAS GST
+      InvoiceNow mandate, ERP-to-Peppol integration) instead of a
+      generic placeholder, carried the same project description through
+      all four features by hand (Charter -> WBS -> Risk Register ->
+      Status Report don't auto-chain today - see the note this run
+      surfaced, below), and verified along the way: the AI's own
+      assumption about the compliance deadline was wrong in the first
+      Charter draft and had to be corrected by supplying the real date;
+      the Risk Register's likelihood/impact values correctly triggered
+      `escalation.py`'s fixed rule on 5 of 8 risks
+      Note for a future iteration: only WBS -> Timeline auto-carries
+      data via `st.session_state` today. Charter -> WBS -> Risk Register
+      -> Status Report do not - consider whether that's worth wiring up

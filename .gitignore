@@ -27,3 +27,7 @@ Thumbs.db
 
 # Streamlit secrets (if you ever deploy to Streamlit Cloud)
 .streamlit/secrets.toml
+
+# Personal interview prep material - lives in the project folder for
+# convenience, but deliberately kept out of the public GitHub repo
+CONCEPTS_AND_VALUE.md

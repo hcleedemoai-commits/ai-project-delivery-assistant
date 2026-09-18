@@ -19,6 +19,17 @@ class Config:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct")
 
+    # Notion (Phase 5 integration)
+    NOTION_API_KEY = os.getenv("NOTION_API_KEY")
+    NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID")
+
+    # Jira (Phase 5 integration - Meeting Action Items)
+    JIRA_BASE_URL = os.getenv("JIRA_BASE_URL")
+    JIRA_EMAIL = os.getenv("JIRA_EMAIL")
+    JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
+    JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
+    JIRA_ISSUE_TYPE = os.getenv("JIRA_ISSUE_TYPE", "Task")
+
     # Paths
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     REPORTS_DIR = os.path.join(BASE_DIR, "reports")
