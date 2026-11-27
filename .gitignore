@@ -12,6 +12,7 @@ ENV/
 .venv
 pip-log.txt
 pip-delete-this-directory.txt
+.pytest_cache/
 
 # Generated documents - keep the folder, not its contents
 reports/*

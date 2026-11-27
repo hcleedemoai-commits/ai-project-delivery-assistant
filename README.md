@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![Claude](https://img.shields.io/badge/Claude-Anthropic%20API-orange)](https://www.anthropic.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-App-red)](https://streamlit.io/)
+[![CI](https://github.com/hcleedemoai-commits/ai-project-delivery-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/hcleedemoai-commits/ai-project-delivery-assistant/actions/workflows/ci.yml)
 
 ## Overview
 
